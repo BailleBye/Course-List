@@ -640,74 +640,107 @@ function renderList() {
   });
 }
 
-// ── DRAG & DROP (touch-native, no library) ─────────────────────────────────
-let dragState = null;
-// ghost: floating clone that follows the finger
-let ghost = null;
+// ── DRAG & DROP — long press to activate (scroll-safe) ────────────────────
+// Flow: touchstart → wait 300ms → haptic → drag mode engaged
+// If finger moves too much before 300ms → cancelled (treated as scroll)
+
+let dragState  = null;
+let ghost      = null;
+let longPressTimer = null;
+const LONG_PRESS_MS  = 300;
+const CANCEL_MOVE_PX = 8; // cancel long press if finger drifts this far
 
 function initDragHandle(handle) {
-  handle.addEventListener('touchstart', onDragStart, { passive: false });
+  handle.addEventListener('touchstart', onHandleTouchStart, { passive: true });
+  handle.addEventListener('touchend',   onHandleTouchCancel);
+  handle.addEventListener('touchcancel',onHandleTouchCancel);
 }
 
-function onDragStart(e) {
-  e.preventDefault(); // prevent scroll while dragging
+function onHandleTouchStart(e) {
   const touch = e.touches[0];
-  const card = handle(e.currentTarget);
+  const startX = touch.clientX;
+  const startY = touch.clientY;
+  const handleEl = e.currentTarget;
+
+  // Clear any pending timer
+  clearTimeout(longPressTimer);
+
+  longPressTimer = setTimeout(() => {
+    // Check finger hasn't moved too much (would mean user is scrolling)
+    // We'll verify in the move handler — just kick off drag here
+    activateDrag(handleEl, startX, startY);
+  }, LONG_PRESS_MS);
+
+  // If finger moves before timer fires, cancel
+  const onMove = (ev) => {
+    const t = ev.touches[0];
+    const dx = Math.abs(t.clientX - startX);
+    const dy = Math.abs(t.clientY - startY);
+    if (dx > CANCEL_MOVE_PX || dy > CANCEL_MOVE_PX) {
+      clearTimeout(longPressTimer);
+      document.removeEventListener('touchmove', onMove);
+    }
+  };
+  document.addEventListener('touchmove', onMove, { passive: true });
+
+  // Cleanup move listener on end too
+  handleEl._cancelMoveListener = onMove;
+}
+
+function onHandleTouchCancel(e) {
+  clearTimeout(longPressTimer);
+  if (e.currentTarget._cancelMoveListener) {
+    document.removeEventListener('touchmove', e.currentTarget._cancelMoveListener);
+  }
+}
+
+function activateDrag(handleEl, startX, startY) {
+  const card = getCard(handleEl);
   if (!card) return;
 
-  const id = +e.currentTarget.dataset.drag;
+  // Haptic feedback (works on iOS Safari 13+ and Android Chrome)
+  if (navigator.vibrate) navigator.vibrate(40);
+
+  const id   = +handleEl.dataset.drag;
   const rect = card.getBoundingClientRect();
 
-  // Create ghost clone
+  // Ghost clone follows the finger
   ghost = card.cloneNode(true);
   ghost.style.cssText = `
     position: fixed;
     left: ${rect.left}px; top: ${rect.top}px;
     width: ${rect.width}px; height: ${rect.height}px;
     margin: 0; z-index: 999; pointer-events: none;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.6);
-    border-radius: 14px; opacity: 0.95;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.65);
+    border-radius: 14px; opacity: 0.96;
+    border: 0.5px solid rgba(232,213,163,0.3);
     transition: none;
   `;
   document.body.appendChild(ghost);
+  card.style.opacity = '0.25';
 
-  card.style.opacity = '0.3';
+  dragState = { id, card, offsetY: startY - rect.top };
 
-  dragState = {
-    id,
-    card,
-    startY: touch.clientY,
-    offsetY: touch.clientY - rect.top,
-    rect,
-  };
-
+  // Now take over touch events — prevent scroll
   document.addEventListener('touchmove', onDragMove, { passive: false });
   document.addEventListener('touchend',  onDragEnd);
 }
 
-function handle(el) {
-  // Walk up to find .item-card
+function getCard(el) {
   let node = el;
   while (node && !node.classList.contains('item-card')) node = node.parentElement;
   return node;
 }
 
 function onDragMove(e) {
-  e.preventDefault();
+  e.preventDefault(); // blocks scroll once drag is active
   if (!dragState || !ghost) return;
   const touch = e.touches[0];
-  const y = touch.clientY - dragState.offsetY;
-  ghost.style.top = y + 'px';
+  ghost.style.top = (touch.clientY - dragState.offsetY) + 'px';
 
-  // Find which card we're hovering over
-  const cards = [...document.querySelectorAll('.item-card')];
-  cards.forEach(c => c.classList.remove('drag-over'));
-
-  const target = cards.find(c => {
-    if (c === dragState.card) return false;
-    const r = c.getBoundingClientRect();
-    return touch.clientY >= r.top && touch.clientY <= r.bottom;
-  });
+  // Highlight the card we're hovering over
+  document.querySelectorAll('.item-card').forEach(c => c.classList.remove('drag-over'));
+  const target = getDragTarget(touch.clientY);
   if (target) target.classList.add('drag-over');
 }
 
@@ -717,36 +750,31 @@ function onDragEnd(e) {
   if (!dragState) return;
 
   const touch = e.changedTouches[0];
-  const cards = [...document.querySelectorAll('.item-card')];
-  cards.forEach(c => c.classList.remove('drag-over'));
+  document.querySelectorAll('.item-card').forEach(c => c.classList.remove('drag-over'));
 
-  // Find drop target
-  const target = cards.find(c => {
-    if (c === dragState.card) return false;
-    const r = c.getBoundingClientRect();
-    return touch.clientY >= r.top && touch.clientY <= r.bottom;
-  });
-
+  const target = getDragTarget(touch.clientY);
   if (target) {
-    const fromId = dragState.id;
-    const toId   = +target.dataset.id;
-    const fromIdx = items.findIndex(i => i.id === fromId);
-    const toIdx   = items.findIndex(i => i.id === toId);
-    if (fromIdx >= 0 && toIdx >= 0) {
-      // Reorder
+    const fromIdx = items.findIndex(i => i.id === dragState.id);
+    const toIdx   = items.findIndex(i => i.id === +target.dataset.id);
+    if (fromIdx >= 0 && toIdx >= 0 && fromIdx !== toIdx) {
       const [moved] = items.splice(fromIdx, 1);
       items.splice(toIdx, 0, moved);
       save();
     }
   }
 
-  // Cleanup
   dragState.card.style.opacity = '';
   if (ghost) { ghost.remove(); ghost = null; }
   dragState = null;
-
   renderList();
-  renderCount();
+}
+
+function getDragTarget(clientY) {
+  return [...document.querySelectorAll('.item-card')].find(c => {
+    if (dragState && c === dragState.card) return false;
+    const r = c.getBoundingClientRect();
+    return clientY >= r.top && clientY <= r.bottom;
+  }) || null;
 }
 
 // ── UTILS ──────────────────────────────────────────────────────────────────
