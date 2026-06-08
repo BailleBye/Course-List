@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="fr" style="background:#0f0f0f">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Courses">
+<meta name="theme-color" content="#0f0f0f">
+<meta name="color-scheme" content="dark">
+<title>Courses</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface2: #242424;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --text: #f0ede8;
+    --text2: #888880;
+    --text3: #555550;
+    --accent: #e8d5a3;
+    --accent-dim: rgba(232,213,163,0.12);
+    --accent-dim2: rgba(232,213,163,0.2);
+    --danger: #c0392b;
+    --danger-dim: rgba(192,57,43,0.15);
+    --radius: 14px;
+    --radius-sm: 8px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html { background: #0f0f0f; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+    background: #0f0f0f;
+    background: var(--bg);
+    color: #f0ede8;
+    color: var(--text);
+    min-height: 100dvh;
+    overflow-x: hidden;
+    padding-bottom: calc(80px + var(--safe-bottom));
+  }
+
+  /* HEADER */
+  .header {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--bg);
+    border-bottom: 0.5px solid var(--border);
+    padding: 16px 20px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .header-title { font-size: 22px; font-weight: 600; letter-spacing: -0.5px; }
+  .header-count { font-size: 13px; color: var(--text3); font-weight: 400; margin-left: 8px; }
+  .btn-clear {
+    background: none; border: none; color: var(--text2); font-size: 13px;
+    padding: 6px 10px; border-radius: var(--radius-sm); cursor: pointer;
+    font-family: inherit; transition: color 0.15s, background 0.15s;
+  }
+  .btn-clear:active { background: var(--danger-dim); color: var(--danger); }
+
+  /* ADD FORM */
+  .add-section { padding: 16px 20px 8px; }
+  .input-row { display: flex; gap: 8px; align-items: center; position: relative; }
+  .input-name {
+    flex: 1; background: var(--surface); border: 0.5px solid var(--border2);
+    border-radius: var(--radius-sm); color: var(--text); font-size: 15px;
+    padding: 10px 14px; font-family: inherit; outline: none; transition: border-color 0.15s;
+  }
+  .input-name:focus { border-color: var(--accent); }
+  .input-name::placeholder { color: var(--text3); }
+
+  /* Autocomplete */
+  .autocomplete {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+    background: var(--surface2); border: 0.5px solid var(--border2);
+    border-radius: var(--radius-sm); z-index: 200; overflow: hidden; display: none;
+  }
+  .autocomplete.visible { display: block; }
+  .autocomplete-item {
+    padding: 11px 14px; font-size: 14px; color: var(--text); cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 0.5px solid var(--border); transition: background 0.1s;
+  }
+  .autocomplete-item:last-child { border-bottom: none; }
+  .autocomplete-item.ac-selected, .autocomplete-item:active { background: var(--surface); }
+  .ac-meta { font-size: 12px; color: var(--text3); }
+  .ac-highlight { color: var(--accent); font-weight: 500; }
+
+  /* Add details panel */
+  .add-details { display: none; margin-top: 10px; flex-direction: column; gap: 8px; }
+  .add-details.visible { display: flex; }
+
+  .type-toggle {
+    display: flex; background: var(--surface);
+    border: 0.5px solid var(--border2); border-radius: var(--radius-sm); overflow: hidden;
+  }
+  .type-btn {
+    flex: 1; padding: 9px 0; font-size: 13px; font-weight: 500; text-align: center;
+    cursor: pointer; color: var(--text2); transition: background 0.15s, color 0.15s;
+    user-select: none; font-family: inherit; border: none; background: none;
+  }
+  .type-btn.active { background: var(--accent-dim2); color: var(--accent); }
+
+  .qty-row { display: flex; gap: 8px; align-items: center; }
+  .input-qty {
+    flex: 1; background: var(--surface); border: 0.5px solid var(--border2);
+    border-radius: var(--radius-sm); color: var(--text); font-size: 15px;
+    padding: 10px 14px; font-family: inherit; outline: none; transition: border-color 0.15s;
+  }
+  .input-qty:focus { border-color: var(--accent); }
+  .input-qty::placeholder { color: var(--text3); }
+  .unit-select {
+    background: var(--surface); border: 0.5px solid var(--border2);
+    border-radius: var(--radius-sm); color: var(--text); font-size: 14px;
+    padding: 10px 12px; font-family: inherit; outline: none; cursor: pointer;
+    appearance: none; min-width: 64px; text-align: center;
+  }
+  .btn-add {
+    background: var(--accent); color: #0f0f0f; border: none;
+    border-radius: var(--radius-sm); font-size: 15px; font-weight: 600;
+    padding: 10px 18px; cursor: pointer; font-family: inherit; white-space: nowrap;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn-add:active { opacity: 0.8; transform: scale(0.97); }
+
+  /* LIST ITEMS */
+  .list-section { padding: 8px 0; }
+  .item-card {
+    margin: 0 12px 6px; background: var(--surface);
+    border: 0.5px solid var(--border); border-radius: var(--radius);
+    display: flex; align-items: center; overflow: hidden;
+    transition: opacity 0.25s, transform 0.25s;
+  }
+  .item-card.completing { opacity: 0; transform: translateX(28px); pointer-events: none; }
+  .item-main { flex: 1; padding: 14px 16px; min-width: 0; }
+  .item-name {
+    font-size: 16px; font-weight: 500; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .item-qty-label { font-size: 13px; color: var(--text3); margin-top: 3px; }
+  .item-progress {
+    height: 3px; background: var(--border); border-radius: 2px;
+    margin-top: 8px; overflow: hidden;
+  }
+  .item-progress-fill {
+    height: 100%; background: var(--accent); border-radius: 2px;
+    transition: width 0.25s ease;
+  }
+  .item-counter {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 10px 14px 10px 8px; flex-shrink: 0;
+  }
+  .counter-value { font-size: 13px; font-weight: 600; color: var(--accent); min-width: 28px; text-align: center; }
+  .btn-inc {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--accent-dim); border: none; color: var(--accent);
+    font-size: 22px; font-weight: 300; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, transform 0.1s; flex-shrink: 0;
+  }
+  .btn-inc:active { background: var(--accent-dim2); transform: scale(0.93); }
+
+  /* COMPLETED SECTION (inline in list) */
+  .completed-toggle {
+    margin: 8px 12px 0;
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 13px 16px; cursor: pointer; user-select: none;
+    transition: background 0.15s;
+  }
+  .completed-toggle:active { background: var(--surface2); }
+  .completed-toggle-left { display: flex; align-items: center; gap: 10px; }
+  .completed-toggle-label { font-size: 14px; color: var(--text2); }
+  .completed-toggle-count {
+    font-size: 12px; font-weight: 600;
+    background: var(--accent-dim2); color: var(--accent);
+    padding: 2px 8px; border-radius: 20px;
+  }
+  .completed-arrow {
+    font-size: 12px; color: var(--text3);
+    transition: transform 0.2s;
+    display: inline-block;
+  }
+  .completed-arrow.open { transform: rotate(180deg); }
+
+  .completed-list { overflow: hidden; }
+  .completed-item {
+    margin: 4px 12px 0;
+    padding: 11px 16px;
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    display: flex; justify-content: space-between; align-items: center;
+    opacity: 0.6;
+  }
+  .completed-item:last-child { margin-bottom: 6px; }
+  .completed-name { font-size: 15px; color: var(--text2); text-decoration: line-through; }
+  .completed-meta { font-size: 12px; color: var(--text3); }
+
+  /* EMPTY STATE */
+  .empty-state { text-align: center; padding: 60px 40px; color: var(--text3); }
+  .empty-state .icon { font-size: 40px; margin-bottom: 12px; opacity: 0.4; }
+  .empty-state p { font-size: 15px; line-height: 1.5; }
+
+  /* TOAST */
+  .toast {
+    position: fixed; bottom: calc(24px + var(--safe-bottom)); left: 50%;
+    transform: translateX(-50%) translateY(16px);
+    background: var(--surface2); border: 0.5px solid var(--border2);
+    border-radius: var(--radius); padding: 12px 16px;
+    display: flex; align-items: center; gap: 14px;
+    font-size: 14px; color: var(--text);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 999; white-space: nowrap; max-width: calc(100vw - 40px);
+  }
+  .toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+  .toast-name { flex: 1; overflow: hidden; text-overflow: ellipsis; color: var(--text2); }
+  .btn-undo {
+    background: none; border: none; color: var(--accent); font-size: 14px;
+    font-weight: 600; cursor: pointer; padding: 2px 0; font-family: inherit; white-space: nowrap;
+  }
+  .toast-progress {
+    position: absolute; bottom: 0; left: 0; height: 2px; background: var(--accent);
+    border-radius: 0 0 var(--radius) var(--radius); transition: width linear;
+  }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 900;
+    display: flex; align-items: flex-end;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  .modal-overlay.visible { opacity: 1; pointer-events: auto; }
+  .modal {
+    width: 100%; background: var(--surface);
+    border-radius: var(--radius) var(--radius) 0 0;
+    border-top: 0.5px solid var(--border2);
+    padding: 24px 20px calc(24px + var(--safe-bottom));
+    transform: translateY(100%); transition: transform 0.25s ease;
+  }
+  .modal-overlay.visible .modal { transform: translateY(0); }
+  .modal-title { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+  .modal-body { font-size: 14px; color: var(--text2); margin-bottom: 24px; line-height: 1.5; }
+  .modal-actions { display: flex; gap: 10px; }
+  .btn-cancel {
+    flex: 1; padding: 13px; border-radius: var(--radius-sm);
+    border: 0.5px solid var(--border2); background: none; color: var(--text2);
+    font-size: 15px; font-weight: 500; cursor: pointer; font-family: inherit;
+  }
+  .btn-confirm-danger {
+    flex: 1; padding: 13px; border-radius: var(--radius-sm); border: none;
+    background: var(--danger); color: #fff; font-size: 15px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <span class="header-title">Courses</span>
+    <span class="header-count" id="item-count"></span>
+  </div>
+  <button class="btn-clear" onclick="confirmClear()">Tout effacer</button>
+</div>
+
+<div class="add-section" id="add-section">
+  <div class="input-row">
+    <input
+      class="input-name" id="input-name" type="text"
+      placeholder="Ajouter un article…"
+      autocomplete="off" autocorrect="off" spellcheck="false"
+      oninput="onNameInput()"
+      onkeydown="onNameKeydown(event)"
+      onfocus="onNameFocus()"
+      onblur="onNameBlur()"
+    >
+    <div class="autocomplete" id="autocomplete"></div>
+  </div>
+
+  <div class="add-details" id="add-details">
+    <div class="type-toggle">
+      <button class="type-btn active" id="type-int" onclick="setType('int')">Quantité</button>
+      <button class="type-btn" id="type-weight" onclick="setType('weight')">Poids</button>
+    </div>
+
+    <div class="qty-row" id="qty-int-row">
+      <input class="input-qty" id="input-qty-int" type="number" min="1" placeholder="Qté cible" inputmode="numeric">
+    </div>
+
+    <div class="qty-row" id="qty-weight-row" style="display:none">
+      <input class="input-qty" id="input-qty-target" type="number" min="1" placeholder="Cible (ex: 500)" inputmode="decimal">
+      <select class="unit-select" id="input-unit">
+        <option value="g">g</option>
+        <option value="kg">kg</option>
+        <option value="L">L</option>
+        <option value="cl">cl</option>
+      </select>
+      <input class="input-qty" id="input-qty-step" type="number" min="1" placeholder="Pas (ex: 250)" inputmode="decimal">
+      <select class="unit-select" id="input-unit-step">
+        <option value="g">g</option>
+        <option value="kg">kg</option>
+        <option value="L">L</option>
+        <option value="cl">cl</option>
+      </select>
+    </div>
+
+    <button class="btn-add" onclick="addItem()">Ajouter</button>
+  </div>
+</div>
+
+<div class="list-section" id="list-container"></div>
+
+<!-- Toast undo -->
+<div class="toast" id="toast">
+  <span class="toast-name" id="toast-msg"></span>
+  <button class="btn-undo" onclick="undoLast()">Annuler</button>
+  <div class="toast-progress" id="toast-progress"></div>
+</div>
+
+<!-- Confirm modal -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-title">Tout effacer</div>
+    <div class="modal-body">La liste active et les articles complétés seront supprimés. Le carnet d'articles est conservé.</div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModalDirect()">Annuler</button>
+      <button class="btn-confirm-danger" onclick="doClear()">Effacer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── DEFAULT VOCAB (pre-loaded, first launch only) ──────────────────────────
+const DEFAULT_VOCAB = [
+  'Pâtes','Riz','Poulet','Boeuf','Avocat','Maïs','Carotte',
+  'Aubergine','Banane','Pomme','Pêche','Abricot'
+].map(name => ({ name, type: 'int', target: 1, step: 1, unit: '', stepUnit: '', count: 1 }));
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+// items    : [{id, name, type, target, step, unit, stepUnit, current}]
+// completed: [{id, name, type, target, step, unit, stepUnit, completedAt}]  — current session
+// vocab    : [{name, type, target, step, unit, stepUnit, count}]
+
+let items     = JSON.parse(localStorage.getItem('crs_items')     || 'null');
+let completed = JSON.parse(localStorage.getItem('crs_completed') || '[]');
+let vocab     = JSON.parse(localStorage.getItem('crs_vocab')     || 'null');
+
+// First launch: seed vocab with default list
+if (items === null)  { items = []; localStorage.setItem('crs_items', '[]'); }
+if (vocab === null)  { vocab = DEFAULT_VOCAB; localStorage.setItem('crs_vocab', JSON.stringify(vocab)); }
+
+let currentType    = 'int';
+let toastTimer     = null;
+let undoPayload    = null;   // {type:'item'|'clear', ...}
+let acIndex        = -1;
+let acResults      = [];
+let completedOpen  = false;
+
+function save() {
+  localStorage.setItem('crs_items',     JSON.stringify(items));
+  localStorage.setItem('crs_completed', JSON.stringify(completed));
+  localStorage.setItem('crs_vocab',     JSON.stringify(vocab));
+}
+
+// ── VOCAB ──────────────────────────────────────────────────────────────────
+function upsertVocab(entry) {
+  const key = entry.name.toLowerCase().trim();
+  const idx = vocab.findIndex(v => v.name.toLowerCase() === key);
+  if (idx >= 0) {
+    // Update params to most recent use, increment count
+    vocab[idx] = { ...vocab[idx], ...entry, name: vocab[idx].name, count: (vocab[idx].count || 0) + 1 };
+  } else {
+    vocab.push({ ...entry, count: 1 });
+  }
+}
+
+// ── FUZZY SEARCH ──────────────────────────────────────────────────────────
+function fuzzyMatch(query, candidate) {
+  query = query.toLowerCase();
+  candidate = candidate.toLowerCase();
+  let qi = 0;
+  for (let ci = 0; ci < candidate.length && qi < query.length; ci++) {
+    if (candidate[ci] === query[qi]) qi++;
+  }
+  return qi === query.length;
+}
+
+function highlightMatch(query, text) {
+  const q = query.toLowerCase();
+  let out = '', qi = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (qi < q.length && text[i].toLowerCase() === q[qi]) {
+      out += `<span class="ac-highlight">${escHtml(text[i])}</span>`; qi++;
+    } else {
+      out += escHtml(text[i]);
+    }
+  }
+  return out;
+}
+
+function getVocabSuggestions(query) {
+  if (!query || query.length < 1) return [];
+  const q = query.toLowerCase().trim();
+  return vocab
+    .filter(v => fuzzyMatch(q, v.name))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+}
+
+// ── AUTOCOMPLETE UI ────────────────────────────────────────────────────────
+function renderAutocomplete(query) {
+  const box = document.getElementById('autocomplete');
+  acResults = getVocabSuggestions(query);
+  if (!acResults.length) { box.classList.remove('visible'); return; }
+
+  box.innerHTML = acResults.map((v, i) => {
+    const meta = v.type === 'int'
+      ? (v.count > 1 ? `×${v.target}` : '')
+      : `${v.target}${v.unit}`;
+    return `<div class="autocomplete-item" data-idx="${i}"
+      onmousedown="selectAC(${i})"
+      ontouchstart="selectAC(${i})">
+      <span>${highlightMatch(query, v.name)}</span>
+      ${meta ? `<span class="ac-meta">${escHtml(meta)}</span>` : ''}
+    </div>`;
+  }).join('');
+
+  acIndex = -1;
+  box.classList.add('visible');
+}
+
+function hideAutocomplete() {
+  document.getElementById('autocomplete').classList.remove('visible');
+  acIndex = -1;
+}
+
+// Select from autocomplete: pre-fill form (name + type + qty), show form, DON'T auto-add
+function selectAC(idx) {
+  const v = acResults[idx];
+  if (!v) return;
+
+  document.getElementById('input-name').value = v.name;
+  hideAutocomplete();
+  showAddDetails();
+  setType(v.type);
+
+  if (v.type === 'int') {
+    // Pre-fill previous quantity so user can confirm or change
+    document.getElementById('input-qty-int').value = v.count > 1 ? v.target : '';
+  } else {
+    document.getElementById('input-qty-target').value = v.target || '';
+    document.getElementById('input-unit').value        = v.unit || 'g';
+    document.getElementById('input-qty-step').value   = v.step || '';
+    document.getElementById('input-unit-step').value  = v.stepUnit || 'g';
+  }
+  // Focus quantity field
+  setTimeout(() => {
+    const qField = currentType === 'int'
+      ? document.getElementById('input-qty-int')
+      : document.getElementById('input-qty-target');
+    qField.focus();
+    qField.select();
+  }, 50);
+}
+
+// ── INPUT EVENTS ───────────────────────────────────────────────────────────
+function onNameInput() {
+  const val = document.getElementById('input-name').value.trim();
+  if (val.length > 0) {
+    showAddDetails();
+    renderAutocomplete(val);
+  } else {
+    hideAddDetails();
+    hideAutocomplete();
+  }
+}
+
+function onNameFocus() {
+  const val = document.getElementById('input-name').value.trim();
+  if (val.length > 0) renderAutocomplete(val);
+}
+
+function onNameBlur() {
+  setTimeout(hideAutocomplete, 150);
+}
+
+function onNameKeydown(e) {
+  const box   = document.getElementById('autocomplete');
+  const elems = box.querySelectorAll('.autocomplete-item');
+  if (!box.classList.contains('visible') || !elems.length) {
+    if (e.key === 'Enter') {
+      const val = document.getElementById('input-name').value.trim();
+      if (val && !document.getElementById('add-details').classList.contains('visible')) {
+        showAddDetails();
+      } else {
+        addItem();
+      }
+    }
+    return;
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    acIndex = Math.min(acIndex + 1, elems.length - 1);
+    updateACSelection(elems);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    acIndex = Math.max(acIndex - 1, -1);
+    updateACSelection(elems);
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (acIndex >= 0) selectAC(acIndex);
+    else addItem();
+  } else if (e.key === 'Escape') {
+    hideAutocomplete();
+  }
+}
+
+function updateACSelection(elems) {
+  elems.forEach((el, i) => el.classList.toggle('ac-selected', i === acIndex));
+}
+
+// ── FORM SHOW/HIDE ─────────────────────────────────────────────────────────
+function showAddDetails() {
+  document.getElementById('add-details').classList.add('visible');
+}
+function hideAddDetails() {
+  document.getElementById('add-details').classList.remove('visible');
+}
+
+function setType(type) {
+  currentType = type;
+  document.getElementById('type-int').classList.toggle('active', type === 'int');
+  document.getElementById('type-weight').classList.toggle('active', type === 'weight');
+  document.getElementById('qty-int-row').style.display    = type === 'int'    ? '' : 'none';
+  document.getElementById('qty-weight-row').style.display = type === 'weight' ? '' : 'none';
+}
+
+// ── ADD ITEM ───────────────────────────────────────────────────────────────
+function addItem() {
+  const name = document.getElementById('input-name').value.trim();
+  if (!name) return;
+
+  let target, step, unit, stepUnit;
+  if (currentType === 'int') {
+    target   = parseInt(document.getElementById('input-qty-int').value) || 1;
+    step     = 1; unit = ''; stepUnit = '';
+  } else {
+    target   = parseFloat(document.getElementById('input-qty-target').value) || 100;
+    unit     = document.getElementById('input-unit').value;
+    step     = parseFloat(document.getElementById('input-qty-step').value) || target;
+    stepUnit = document.getElementById('input-unit-step').value;
+  }
+
+  const entry = { name, type: currentType, target, step, unit, stepUnit };
+  upsertVocab(entry);
+
+  items.push({ id: Date.now() + Math.random(), ...entry, current: 0 });
+  save();
+  renderList();
+  renderCount();
+  resetForm();
+}
+
+function resetForm() {
+  document.getElementById('input-name').value         = '';
+  document.getElementById('input-qty-int').value      = '';
+  document.getElementById('input-qty-target').value   = '';
+  document.getElementById('input-qty-step').value     = '';
+  hideAddDetails();
+  hideAutocomplete();
+  setType('int');
+}
+
+// ── INCREMENT ──────────────────────────────────────────────────────────────
+function increment(id) {
+  const idx = items.findIndex(i => i.id === id);
+  if (idx < 0) return;
+  const item = items[idx];
+  item.current = Math.min(+(item.current + item.step).toFixed(6), item.target);
+
+  if (item.current >= item.target) {
+    const completedEntry = { ...item, completedAt: Date.now() };
+    completed.unshift(completedEntry);
+    undoPayload = { type: 'item', item: { ...item }, completedEntry };
+    items.splice(idx, 1);
+    save();
+    renderList();
+    renderCount();
+    showToast(`"${item.name}" coché`);
+  } else {
+    save();
+    // Surgical DOM update — no full re-render
+    const card = document.querySelector(`[data-id="${id}"]`);
+    if (card) {
+      const pct = (item.current / item.target) * 100;
+      card.querySelector('.item-progress-fill').style.width = pct + '%';
+      card.querySelector('.counter-value').textContent      = formatCurrent(item);
+      card.querySelector('.item-qty-label').textContent     = formatQtyLabel(item);
+    }
+  }
+}
+
+// ── UNDO ───────────────────────────────────────────────────────────────────
+function undoLast() {
+  if (!undoPayload) return;
+  hideToast();
+  if (undoPayload.type === 'item') {
+    items.push(undoPayload.item);
+    completed = completed.filter(c => c !== undoPayload.completedEntry);
+  } else if (undoPayload.type === 'clear') {
+    items     = undoPayload.items;
+    completed = undoPayload.completed;
+  }
+  undoPayload = null;
+  save();
+  renderList();
+  renderCount();
+}
+
+// ── TOAST ──────────────────────────────────────────────────────────────────
+function showToast(msg) {
+  clearTimeout(toastTimer);
+  const toast    = document.getElementById('toast');
+  const msgEl    = document.getElementById('toast-msg');
+  const progress = document.getElementById('toast-progress');
+  msgEl.textContent = msg;
+  progress.style.transition = 'none';
+  progress.style.width = '100%';
+  toast.classList.add('visible');
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    progress.style.transition = 'width 4s linear';
+    progress.style.width = '0%';
+  }));
+  toastTimer = setTimeout(hideToast, 4000);
+}
+function hideToast() {
+  document.getElementById('toast').classList.remove('visible');
+  clearTimeout(toastTimer);
+}
+
+// ── CLEAR ──────────────────────────────────────────────────────────────────
+function confirmClear() {
+  if (!items.length && !completed.length) return;
+  document.getElementById('modal-overlay').classList.add('visible');
+}
+function closeModal(e) {
+  if (e.target === document.getElementById('modal-overlay')) closeModalDirect();
+}
+function closeModalDirect() {
+  document.getElementById('modal-overlay').classList.remove('visible');
+}
+function doClear() {
+  closeModalDirect();
+  undoPayload = { type: 'clear', items: [...items], completed: [...completed] };
+  items     = [];
+  completed = [];
+  completedOpen = false;
+  save();
+  renderList();
+  renderCount();
+  showToast('Liste effacée');
+}
+
+// ── COMPLETED TOGGLE ───────────────────────────────────────────────────────
+function toggleCompleted() {
+  completedOpen = !completedOpen;
+  renderCompletedSection();
+}
+
+// ── RENDER HELPERS ─────────────────────────────────────────────────────────
+function formatCurrent(item) {
+  if (item.type === 'int') return String(item.current);
+  return `${item.current}${item.stepUnit || item.unit}`;
+}
+function formatTarget(item) {
+  if (item.type === 'int') return String(item.target);
+  return `${item.target}${item.unit}`;
+}
+function formatQtyLabel(item) {
+  return `${formatCurrent(item)} / ${formatTarget(item)}`;
+}
+
+function renderCount() {
+  const el = document.getElementById('item-count');
+  el.textContent = items.length ? `(${items.length})` : '';
+}
+
+// ── RENDER LIST ────────────────────────────────────────────────────────────
+function renderList() {
+  const container = document.getElementById('list-container');
+
+  if (!items.length && !completed.length) {
+    container.innerHTML = `<div class="empty-state">
+      <div class="icon">🛒</div>
+      <p>Votre liste est vide.<br>Commencez par ajouter un article.</p>
+    </div>`;
+    return;
+  }
+
+  let html = '';
+
+  // Active items
+  html += items.map(item => {
+    const pct = (item.current / item.target) * 100;
+    return `<div class="item-card" data-id="${item.id}">
+      <div class="item-main">
+        <div class="item-name">${escHtml(item.name)}</div>
+        <div class="item-qty-label">${escHtml(formatQtyLabel(item))}</div>
+        <div class="item-progress">
+          <div class="item-progress-fill" style="width:${pct}%"></div>
+        </div>
+      </div>
+      <div class="item-counter">
+        <span class="counter-value">${escHtml(formatCurrent(item))}</span>
+        <button class="btn-inc" onclick="increment(${item.id})" aria-label="Incrémenter ${escHtml(item.name)}">+</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Completed toggle button (only if there are completed items)
+  if (completed.length) {
+    const arrowClass = completedOpen ? 'completed-arrow open' : 'completed-arrow';
+    html += `<div class="completed-toggle" onclick="toggleCompleted()">
+      <div class="completed-toggle-left">
+        <span class="completed-toggle-label">Déjà pris</span>
+        <span class="completed-toggle-count">${completed.length}</span>
+      </div>
+      <span class="${arrowClass}">▼</span>
+    </div>`;
+
+    if (completedOpen) {
+      html += `<div class="completed-list">` +
+        completed.map(c => {
+          const meta = c.type === 'int' ? `×${c.target}` : `${c.target}${c.unit}`;
+          return `<div class="completed-item">
+            <span class="completed-name">${escHtml(c.name)}</span>
+            <span class="completed-meta">${escHtml(meta)}</span>
+          </div>`;
+        }).join('') +
+      `</div>`;
+    }
+  }
+
+  container.innerHTML = html;
+}
+
+// ── UTILS ──────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderCompletedSection() {
+  // Re-render only the completed toggle area without touching active items
+  // Easiest: full re-render (list is typically short)
+  renderList();
+}
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+renderList();
+renderCount();
+</script>
+</body>
+</html>
