@@ -2,7 +2,7 @@
 <html lang="fr" style="background:#0f0f0f">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -31,7 +31,7 @@
     --safe-bottom: env(safe-area-inset-bottom, 0px);
   }
 
-  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 
   html { background: #0f0f0f; }
   body {
@@ -43,6 +43,8 @@
     min-height: 100dvh;
     overflow-x: hidden;
     padding-bottom: calc(80px + var(--safe-bottom));
+    /* Prevent iOS double-tap zoom on the whole page */
+    touch-action: manipulation;
   }
 
   /* HEADER */
@@ -129,42 +131,63 @@
 
   /* LIST ITEMS */
   .list-section { padding: 8px 0; }
+
   .item-card {
     margin: 0 12px 6px; background: var(--surface);
     border: 0.5px solid var(--border); border-radius: var(--radius);
     display: flex; align-items: center; overflow: hidden;
-    transition: opacity 0.25s, transform 0.25s;
+    transition: opacity 0.25s, transform 0.25s, box-shadow 0.2s;
+    position: relative; /* needed for drag */
+    user-select: none;
   }
   .item-card.completing { opacity: 0; transform: translateX(28px); pointer-events: none; }
-  .item-main { flex: 1; padding: 14px 16px; min-width: 0; }
+
+  /* Drag state */
+  .item-card.dragging {
+    opacity: 0.92;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    border-color: var(--border2);
+    z-index: 50;
+    transition: box-shadow 0.2s; /* no position transition while dragging */
+  }
+  .item-card.drag-over {
+    border-color: var(--accent);
+    background: var(--surface2);
+  }
+
+  /* Drag handle */
+  .drag-handle {
+    padding: 14px 4px 14px 12px;
+    color: var(--text3);
+    font-size: 18px;
+    cursor: grab;
+    flex-shrink: 0;
+    display: flex; align-items: center;
+    touch-action: none; /* let JS handle touch on the handle */
+  }
+  .drag-handle:active { cursor: grabbing; }
+
+  .item-main { flex: 1; padding: 14px 12px 14px 4px; min-width: 0; }
   .item-name {
     font-size: 16px; font-weight: 500; color: var(--text);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .item-qty-label { font-size: 13px; color: var(--text3); margin-top: 3px; }
-  .item-progress {
-    height: 3px; background: var(--border); border-radius: 2px;
-    margin-top: 8px; overflow: hidden;
-  }
-  .item-progress-fill {
-    height: 100%; background: var(--accent); border-radius: 2px;
-    transition: width 0.25s ease;
-  }
-  .item-counter {
-    display: flex; flex-direction: column; align-items: center; gap: 4px;
-    padding: 10px 14px 10px 8px; flex-shrink: 0;
-  }
-  .counter-value { font-size: 13px; font-weight: 600; color: var(--accent); min-width: 28px; text-align: center; }
-  .btn-inc {
-    width: 44px; height: 44px; border-radius: 50%;
-    background: var(--accent-dim); border: none; color: var(--accent);
-    font-size: 22px; font-weight: 300; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    transition: background 0.15s, transform 0.1s; flex-shrink: 0;
-  }
-  .btn-inc:active { background: var(--accent-dim2); transform: scale(0.93); }
+  .item-qty-label { font-size: 13px; color: var(--text3); margin-top: 2px; }
 
-  /* COMPLETED SECTION (inline in list) */
+  /* Check button — replaces the old counter+inc combo */
+  .btn-check {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: var(--accent-dim); border: none; color: var(--accent);
+    font-size: 20px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-right: 10px;
+    transition: background 0.15s, transform 0.1s;
+    /* Critical: prevent double-tap zoom on this button specifically */
+    touch-action: manipulation;
+  }
+  .btn-check:active { background: var(--accent-dim2); transform: scale(0.9); }
+
+  /* COMPLETED SECTION */
   .completed-toggle {
     margin: 8px 12px 0;
     background: var(--surface);
@@ -184,17 +207,13 @@
   }
   .completed-arrow {
     font-size: 12px; color: var(--text3);
-    transition: transform 0.2s;
-    display: inline-block;
+    transition: transform 0.2s; display: inline-block;
   }
   .completed-arrow.open { transform: rotate(180deg); }
-
   .completed-list { overflow: hidden; }
   .completed-item {
-    margin: 4px 12px 0;
-    padding: 11px 16px;
-    background: var(--surface);
-    border: 0.5px solid var(--border);
+    margin: 4px 12px 0; padding: 11px 16px;
+    background: var(--surface); border: 0.5px solid var(--border);
     border-radius: var(--radius-sm);
     display: flex; justify-content: space-between; align-items: center;
     opacity: 0.6;
@@ -271,7 +290,7 @@
   <button class="btn-clear" onclick="confirmClear()">Tout effacer</button>
 </div>
 
-<div class="add-section" id="add-section">
+<div class="add-section">
   <div class="input-row">
     <input
       class="input-name" id="input-name" type="text"
@@ -290,42 +309,33 @@
       <button class="type-btn active" id="type-int" onclick="setType('int')">Quantité</button>
       <button class="type-btn" id="type-weight" onclick="setType('weight')">Poids</button>
     </div>
-
     <div class="qty-row" id="qty-int-row">
       <input class="input-qty" id="input-qty-int" type="number" min="1" placeholder="Qté cible" inputmode="numeric">
     </div>
-
     <div class="qty-row" id="qty-weight-row" style="display:none">
       <input class="input-qty" id="input-qty-target" type="number" min="1" placeholder="Cible (ex: 500)" inputmode="decimal">
       <select class="unit-select" id="input-unit">
-        <option value="g">g</option>
-        <option value="kg">kg</option>
-        <option value="L">L</option>
-        <option value="cl">cl</option>
+        <option value="g">g</option><option value="kg">kg</option>
+        <option value="L">L</option><option value="cl">cl</option>
       </select>
       <input class="input-qty" id="input-qty-step" type="number" min="1" placeholder="Pas (ex: 250)" inputmode="decimal">
       <select class="unit-select" id="input-unit-step">
-        <option value="g">g</option>
-        <option value="kg">kg</option>
-        <option value="L">L</option>
-        <option value="cl">cl</option>
+        <option value="g">g</option><option value="kg">kg</option>
+        <option value="L">L</option><option value="cl">cl</option>
       </select>
     </div>
-
     <button class="btn-add" onclick="addItem()">Ajouter</button>
   </div>
 </div>
 
 <div class="list-section" id="list-container"></div>
 
-<!-- Toast undo -->
 <div class="toast" id="toast">
   <span class="toast-name" id="toast-msg"></span>
   <button class="btn-undo" onclick="undoLast()">Annuler</button>
   <div class="toast-progress" id="toast-progress"></div>
 </div>
 
-<!-- Confirm modal -->
 <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
   <div class="modal">
     <div class="modal-title">Tout effacer</div>
@@ -338,31 +348,26 @@
 </div>
 
 <script>
-// ── DEFAULT VOCAB (pre-loaded, first launch only) ──────────────────────────
+// ── DEFAULT VOCAB ──────────────────────────────────────────────────────────
 const DEFAULT_VOCAB = [
   'Pâtes','Riz','Poulet','Boeuf','Avocat','Maïs','Carotte',
   'Aubergine','Banane','Pomme','Pêche','Abricot'
 ].map(name => ({ name, type: 'int', target: 1, step: 1, unit: '', stepUnit: '', count: 1 }));
 
 // ── STATE ──────────────────────────────────────────────────────────────────
-// items    : [{id, name, type, target, step, unit, stepUnit, current}]
-// completed: [{id, name, type, target, step, unit, stepUnit, completedAt}]  — current session
-// vocab    : [{name, type, target, step, unit, stepUnit, count}]
-
 let items     = JSON.parse(localStorage.getItem('crs_items')     || 'null');
 let completed = JSON.parse(localStorage.getItem('crs_completed') || '[]');
 let vocab     = JSON.parse(localStorage.getItem('crs_vocab')     || 'null');
 
-// First launch: seed vocab with default list
 if (items === null)  { items = []; localStorage.setItem('crs_items', '[]'); }
 if (vocab === null)  { vocab = DEFAULT_VOCAB; localStorage.setItem('crs_vocab', JSON.stringify(vocab)); }
 
-let currentType    = 'int';
-let toastTimer     = null;
-let undoPayload    = null;   // {type:'item'|'clear', ...}
-let acIndex        = -1;
-let acResults      = [];
-let completedOpen  = false;
+let currentType   = 'int';
+let toastTimer    = null;
+let undoPayload   = null;
+let acIndex       = -1;
+let acResults     = [];
+let completedOpen = false;
 
 function save() {
   localStorage.setItem('crs_items',     JSON.stringify(items));
@@ -375,7 +380,6 @@ function upsertVocab(entry) {
   const key = entry.name.toLowerCase().trim();
   const idx = vocab.findIndex(v => v.name.toLowerCase() === key);
   if (idx >= 0) {
-    // Update params to most recent use, increment count
     vocab[idx] = { ...vocab[idx], ...entry, name: vocab[idx].name, count: (vocab[idx].count || 0) + 1 };
   } else {
     vocab.push({ ...entry, count: 1 });
@@ -384,76 +388,56 @@ function upsertVocab(entry) {
 
 // ── FUZZY SEARCH ──────────────────────────────────────────────────────────
 function fuzzyMatch(query, candidate) {
-  query = query.toLowerCase();
-  candidate = candidate.toLowerCase();
+  query = query.toLowerCase(); candidate = candidate.toLowerCase();
   let qi = 0;
   for (let ci = 0; ci < candidate.length && qi < query.length; ci++) {
     if (candidate[ci] === query[qi]) qi++;
   }
   return qi === query.length;
 }
-
 function highlightMatch(query, text) {
-  const q = query.toLowerCase();
-  let out = '', qi = 0;
+  const q = query.toLowerCase(); let out = '', qi = 0;
   for (let i = 0; i < text.length; i++) {
     if (qi < q.length && text[i].toLowerCase() === q[qi]) {
       out += `<span class="ac-highlight">${escHtml(text[i])}</span>`; qi++;
-    } else {
-      out += escHtml(text[i]);
-    }
+    } else { out += escHtml(text[i]); }
   }
   return out;
 }
-
 function getVocabSuggestions(query) {
   if (!query || query.length < 1) return [];
   const q = query.toLowerCase().trim();
-  return vocab
-    .filter(v => fuzzyMatch(q, v.name))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 6);
+  return vocab.filter(v => fuzzyMatch(q, v.name)).sort((a, b) => b.count - a.count).slice(0, 6);
 }
 
-// ── AUTOCOMPLETE UI ────────────────────────────────────────────────────────
+// ── AUTOCOMPLETE ───────────────────────────────────────────────────────────
 function renderAutocomplete(query) {
   const box = document.getElementById('autocomplete');
   acResults = getVocabSuggestions(query);
   if (!acResults.length) { box.classList.remove('visible'); return; }
-
   box.innerHTML = acResults.map((v, i) => {
-    const meta = v.type === 'int'
-      ? (v.count > 1 ? `×${v.target}` : '')
-      : `${v.target}${v.unit}`;
+    const meta = v.type === 'int' ? (v.count > 1 ? `×${v.target}` : '') : `${v.target}${v.unit}`;
     return `<div class="autocomplete-item" data-idx="${i}"
-      onmousedown="selectAC(${i})"
-      ontouchstart="selectAC(${i})">
+      onmousedown="selectAC(${i})" ontouchstart="selectAC(${i})">
       <span>${highlightMatch(query, v.name)}</span>
       ${meta ? `<span class="ac-meta">${escHtml(meta)}</span>` : ''}
     </div>`;
   }).join('');
-
   acIndex = -1;
   box.classList.add('visible');
 }
-
 function hideAutocomplete() {
   document.getElementById('autocomplete').classList.remove('visible');
   acIndex = -1;
 }
-
-// Select from autocomplete: pre-fill form (name + type + qty), show form, DON'T auto-add
 function selectAC(idx) {
   const v = acResults[idx];
   if (!v) return;
-
   document.getElementById('input-name').value = v.name;
   hideAutocomplete();
   showAddDetails();
   setType(v.type);
-
   if (v.type === 'int') {
-    // Pre-fill previous quantity so user can confirm or change
     document.getElementById('input-qty-int').value = v.count > 1 ? v.target : '';
   } else {
     document.getElementById('input-qty-target').value = v.target || '';
@@ -461,80 +445,48 @@ function selectAC(idx) {
     document.getElementById('input-qty-step').value   = v.step || '';
     document.getElementById('input-unit-step').value  = v.stepUnit || 'g';
   }
-  // Focus quantity field
   setTimeout(() => {
     const qField = currentType === 'int'
       ? document.getElementById('input-qty-int')
       : document.getElementById('input-qty-target');
-    qField.focus();
-    qField.select();
+    qField.focus(); qField.select();
   }, 50);
 }
 
 // ── INPUT EVENTS ───────────────────────────────────────────────────────────
 function onNameInput() {
   const val = document.getElementById('input-name').value.trim();
-  if (val.length > 0) {
-    showAddDetails();
-    renderAutocomplete(val);
-  } else {
-    hideAddDetails();
-    hideAutocomplete();
-  }
+  if (val.length > 0) { showAddDetails(); renderAutocomplete(val); }
+  else { hideAddDetails(); hideAutocomplete(); }
 }
-
 function onNameFocus() {
   const val = document.getElementById('input-name').value.trim();
   if (val.length > 0) renderAutocomplete(val);
 }
-
-function onNameBlur() {
-  setTimeout(hideAutocomplete, 150);
-}
-
+function onNameBlur() { setTimeout(hideAutocomplete, 150); }
 function onNameKeydown(e) {
-  const box   = document.getElementById('autocomplete');
+  const box = document.getElementById('autocomplete');
   const elems = box.querySelectorAll('.autocomplete-item');
   if (!box.classList.contains('visible') || !elems.length) {
     if (e.key === 'Enter') {
       const val = document.getElementById('input-name').value.trim();
-      if (val && !document.getElementById('add-details').classList.contains('visible')) {
-        showAddDetails();
-      } else {
-        addItem();
-      }
+      if (val && !document.getElementById('add-details').classList.contains('visible')) showAddDetails();
+      else addItem();
     }
     return;
   }
-  if (e.key === 'ArrowDown') {
-    e.preventDefault();
-    acIndex = Math.min(acIndex + 1, elems.length - 1);
-    updateACSelection(elems);
-  } else if (e.key === 'ArrowUp') {
-    e.preventDefault();
-    acIndex = Math.max(acIndex - 1, -1);
-    updateACSelection(elems);
-  } else if (e.key === 'Enter') {
-    e.preventDefault();
-    if (acIndex >= 0) selectAC(acIndex);
-    else addItem();
-  } else if (e.key === 'Escape') {
-    hideAutocomplete();
-  }
+  if (e.key === 'ArrowDown') { e.preventDefault(); acIndex = Math.min(acIndex+1, elems.length-1); updateACSelection(elems); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); acIndex = Math.max(acIndex-1, -1); updateACSelection(elems); }
+  else if (e.key === 'Enter') { e.preventDefault(); if (acIndex >= 0) selectAC(acIndex); else addItem(); }
+  else if (e.key === 'Escape') hideAutocomplete();
 }
-
 function updateACSelection(elems) {
   elems.forEach((el, i) => el.classList.toggle('ac-selected', i === acIndex));
 }
 
-// ── FORM SHOW/HIDE ─────────────────────────────────────────────────────────
-function showAddDetails() {
-  document.getElementById('add-details').classList.add('visible');
-}
-function hideAddDetails() {
-  document.getElementById('add-details').classList.remove('visible');
-}
-
+// ── FORM ───────────────────────────────────────────────────────────────────
+function showAddDetails() { document.getElementById('add-details').classList.add('visible'); }
+function hideAddDetails()  { document.getElementById('add-details').classList.remove('visible'); }
 function setType(type) {
   currentType = type;
   document.getElementById('type-int').classList.toggle('active', type === 'int');
@@ -543,69 +495,43 @@ function setType(type) {
   document.getElementById('qty-weight-row').style.display = type === 'weight' ? '' : 'none';
 }
 
-// ── ADD ITEM ───────────────────────────────────────────────────────────────
 function addItem() {
   const name = document.getElementById('input-name').value.trim();
   if (!name) return;
-
   let target, step, unit, stepUnit;
   if (currentType === 'int') {
-    target   = parseInt(document.getElementById('input-qty-int').value) || 1;
-    step     = 1; unit = ''; stepUnit = '';
+    target = parseInt(document.getElementById('input-qty-int').value) || 1;
+    step = 1; unit = ''; stepUnit = '';
   } else {
     target   = parseFloat(document.getElementById('input-qty-target').value) || 100;
     unit     = document.getElementById('input-unit').value;
     step     = parseFloat(document.getElementById('input-qty-step').value) || target;
     stepUnit = document.getElementById('input-unit-step').value;
   }
-
   const entry = { name, type: currentType, target, step, unit, stepUnit };
   upsertVocab(entry);
-
   items.push({ id: Date.now() + Math.random(), ...entry, current: 0 });
-  save();
-  renderList();
-  renderCount();
-  resetForm();
+  save(); renderList(); renderCount(); resetForm();
 }
-
 function resetForm() {
-  document.getElementById('input-name').value         = '';
-  document.getElementById('input-qty-int').value      = '';
-  document.getElementById('input-qty-target').value   = '';
-  document.getElementById('input-qty-step').value     = '';
-  hideAddDetails();
-  hideAutocomplete();
-  setType('int');
+  document.getElementById('input-name').value       = '';
+  document.getElementById('input-qty-int').value    = '';
+  document.getElementById('input-qty-target').value = '';
+  document.getElementById('input-qty-step').value   = '';
+  hideAddDetails(); hideAutocomplete(); setType('int');
 }
 
-// ── INCREMENT ──────────────────────────────────────────────────────────────
-function increment(id) {
+// ── CHECK (1 tap = done) ───────────────────────────────────────────────────
+function checkItem(id) {
   const idx = items.findIndex(i => i.id === id);
   if (idx < 0) return;
   const item = items[idx];
-  item.current = Math.min(+(item.current + item.step).toFixed(6), item.target);
-
-  if (item.current >= item.target) {
-    const completedEntry = { ...item, completedAt: Date.now() };
-    completed.unshift(completedEntry);
-    undoPayload = { type: 'item', item: { ...item }, completedEntry };
-    items.splice(idx, 1);
-    save();
-    renderList();
-    renderCount();
-    showToast(`"${item.name}" coché`);
-  } else {
-    save();
-    // Surgical DOM update — no full re-render
-    const card = document.querySelector(`[data-id="${id}"]`);
-    if (card) {
-      const pct = (item.current / item.target) * 100;
-      card.querySelector('.item-progress-fill').style.width = pct + '%';
-      card.querySelector('.counter-value').textContent      = formatCurrent(item);
-      card.querySelector('.item-qty-label').textContent     = formatQtyLabel(item);
-    }
-  }
+  const completedEntry = { ...item, completedAt: Date.now() };
+  completed.unshift(completedEntry);
+  undoPayload = { type: 'item', item: { ...item }, completedEntry };
+  items.splice(idx, 1);
+  save(); renderList(); renderCount();
+  showToast(`"${item.name}" coché`);
 }
 
 // ── UNDO ───────────────────────────────────────────────────────────────────
@@ -616,28 +542,22 @@ function undoLast() {
     items.push(undoPayload.item);
     completed = completed.filter(c => c !== undoPayload.completedEntry);
   } else if (undoPayload.type === 'clear') {
-    items     = undoPayload.items;
-    completed = undoPayload.completed;
+    items = undoPayload.items; completed = undoPayload.completed;
   }
   undoPayload = null;
-  save();
-  renderList();
-  renderCount();
+  save(); renderList(); renderCount();
 }
 
 // ── TOAST ──────────────────────────────────────────────────────────────────
 function showToast(msg) {
   clearTimeout(toastTimer);
-  const toast    = document.getElementById('toast');
-  const msgEl    = document.getElementById('toast-msg');
+  const toast = document.getElementById('toast');
   const progress = document.getElementById('toast-progress');
-  msgEl.textContent = msg;
-  progress.style.transition = 'none';
-  progress.style.width = '100%';
+  document.getElementById('toast-msg').textContent = msg;
+  progress.style.transition = 'none'; progress.style.width = '100%';
   toast.classList.add('visible');
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    progress.style.transition = 'width 4s linear';
-    progress.style.width = '0%';
+    progress.style.transition = 'width 4s linear'; progress.style.width = '0%';
   }));
   toastTimer = setTimeout(hideToast, 4000);
 }
@@ -651,81 +571,44 @@ function confirmClear() {
   if (!items.length && !completed.length) return;
   document.getElementById('modal-overlay').classList.add('visible');
 }
-function closeModal(e) {
-  if (e.target === document.getElementById('modal-overlay')) closeModalDirect();
-}
-function closeModalDirect() {
-  document.getElementById('modal-overlay').classList.remove('visible');
-}
+function closeModal(e) { if (e.target === document.getElementById('modal-overlay')) closeModalDirect(); }
+function closeModalDirect() { document.getElementById('modal-overlay').classList.remove('visible'); }
 function doClear() {
   closeModalDirect();
   undoPayload = { type: 'clear', items: [...items], completed: [...completed] };
-  items     = [];
-  completed = [];
-  completedOpen = false;
-  save();
-  renderList();
-  renderCount();
-  showToast('Liste effacée');
+  items = []; completed = []; completedOpen = false;
+  save(); renderList(); renderCount(); showToast('Liste effacée');
 }
 
 // ── COMPLETED TOGGLE ───────────────────────────────────────────────────────
-function toggleCompleted() {
-  completedOpen = !completedOpen;
-  renderCompletedSection();
-}
+function toggleCompleted() { completedOpen = !completedOpen; renderList(); }
 
-// ── RENDER HELPERS ─────────────────────────────────────────────────────────
-function formatCurrent(item) {
-  if (item.type === 'int') return String(item.current);
-  return `${item.current}${item.stepUnit || item.unit}`;
-}
+// ── RENDER ─────────────────────────────────────────────────────────────────
 function formatTarget(item) {
-  if (item.type === 'int') return String(item.target);
-  return `${item.target}${item.unit}`;
+  return item.type === 'int' ? `×${item.target}` : `${item.target}${item.unit}`;
 }
-function formatQtyLabel(item) {
-  return `${formatCurrent(item)} / ${formatTarget(item)}`;
-}
-
 function renderCount() {
-  const el = document.getElementById('item-count');
-  el.textContent = items.length ? `(${items.length})` : '';
+  document.getElementById('item-count').textContent = items.length ? `(${items.length})` : '';
 }
 
-// ── RENDER LIST ────────────────────────────────────────────────────────────
 function renderList() {
   const container = document.getElementById('list-container');
-
   if (!items.length && !completed.length) {
-    container.innerHTML = `<div class="empty-state">
-      <div class="icon">🛒</div>
-      <p>Votre liste est vide.<br>Commencez par ajouter un article.</p>
-    </div>`;
+    container.innerHTML = `<div class="empty-state"><div class="icon">🛒</div><p>Votre liste est vide.<br>Commencez par ajouter un article.</p></div>`;
     return;
   }
 
-  let html = '';
-
-  // Active items
-  html += items.map(item => {
-    const pct = (item.current / item.target) * 100;
-    return `<div class="item-card" data-id="${item.id}">
+  let html = items.map(item => `
+    <div class="item-card" data-id="${item.id}"
+      draggable="false">
+      <div class="drag-handle" data-drag="${item.id}">⠿</div>
       <div class="item-main">
         <div class="item-name">${escHtml(item.name)}</div>
-        <div class="item-qty-label">${escHtml(formatQtyLabel(item))}</div>
-        <div class="item-progress">
-          <div class="item-progress-fill" style="width:${pct}%"></div>
-        </div>
+        <div class="item-qty-label">${escHtml(formatTarget(item))}</div>
       </div>
-      <div class="item-counter">
-        <span class="counter-value">${escHtml(formatCurrent(item))}</span>
-        <button class="btn-inc" onclick="increment(${item.id})" aria-label="Incrémenter ${escHtml(item.name)}">+</button>
-      </div>
-    </div>`;
-  }).join('');
+      <button class="btn-check" data-check="${item.id}" aria-label="Cocher ${escHtml(item.name)}">✓</button>
+    </div>`).join('');
 
-  // Completed toggle button (only if there are completed items)
   if (completed.length) {
     const arrowClass = completedOpen ? 'completed-arrow open' : 'completed-arrow';
     html += `<div class="completed-toggle" onclick="toggleCompleted()">
@@ -735,34 +618,140 @@ function renderList() {
       </div>
       <span class="${arrowClass}">▼</span>
     </div>`;
-
     if (completedOpen) {
-      html += `<div class="completed-list">` +
-        completed.map(c => {
-          const meta = c.type === 'int' ? `×${c.target}` : `${c.target}${c.unit}`;
-          return `<div class="completed-item">
-            <span class="completed-name">${escHtml(c.name)}</span>
-            <span class="completed-meta">${escHtml(meta)}</span>
-          </div>`;
-        }).join('') +
-      `</div>`;
+      html += `<div class="completed-list">` + completed.map(c =>
+        `<div class="completed-item">
+          <span class="completed-name">${escHtml(c.name)}</span>
+          <span class="completed-meta">${escHtml(formatTarget(c))}</span>
+        </div>`).join('') + `</div>`;
     }
   }
 
   container.innerHTML = html;
+
+  // Bind check buttons (avoids inline onclick with float IDs)
+  container.querySelectorAll('[data-check]').forEach(btn => {
+    btn.addEventListener('click', () => checkItem(+btn.dataset.check));
+  });
+
+  // Bind drag handles
+  container.querySelectorAll('[data-drag]').forEach(handle => {
+    initDragHandle(handle);
+  });
+}
+
+// ── DRAG & DROP (touch-native, no library) ─────────────────────────────────
+let dragState = null;
+// ghost: floating clone that follows the finger
+let ghost = null;
+
+function initDragHandle(handle) {
+  handle.addEventListener('touchstart', onDragStart, { passive: false });
+}
+
+function onDragStart(e) {
+  e.preventDefault(); // prevent scroll while dragging
+  const touch = e.touches[0];
+  const card = handle(e.currentTarget);
+  if (!card) return;
+
+  const id = +e.currentTarget.dataset.drag;
+  const rect = card.getBoundingClientRect();
+
+  // Create ghost clone
+  ghost = card.cloneNode(true);
+  ghost.style.cssText = `
+    position: fixed;
+    left: ${rect.left}px; top: ${rect.top}px;
+    width: ${rect.width}px; height: ${rect.height}px;
+    margin: 0; z-index: 999; pointer-events: none;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+    border-radius: 14px; opacity: 0.95;
+    transition: none;
+  `;
+  document.body.appendChild(ghost);
+
+  card.style.opacity = '0.3';
+
+  dragState = {
+    id,
+    card,
+    startY: touch.clientY,
+    offsetY: touch.clientY - rect.top,
+    rect,
+  };
+
+  document.addEventListener('touchmove', onDragMove, { passive: false });
+  document.addEventListener('touchend',  onDragEnd);
+}
+
+function handle(el) {
+  // Walk up to find .item-card
+  let node = el;
+  while (node && !node.classList.contains('item-card')) node = node.parentElement;
+  return node;
+}
+
+function onDragMove(e) {
+  e.preventDefault();
+  if (!dragState || !ghost) return;
+  const touch = e.touches[0];
+  const y = touch.clientY - dragState.offsetY;
+  ghost.style.top = y + 'px';
+
+  // Find which card we're hovering over
+  const cards = [...document.querySelectorAll('.item-card')];
+  cards.forEach(c => c.classList.remove('drag-over'));
+
+  const target = cards.find(c => {
+    if (c === dragState.card) return false;
+    const r = c.getBoundingClientRect();
+    return touch.clientY >= r.top && touch.clientY <= r.bottom;
+  });
+  if (target) target.classList.add('drag-over');
+}
+
+function onDragEnd(e) {
+  document.removeEventListener('touchmove', onDragMove);
+  document.removeEventListener('touchend',  onDragEnd);
+  if (!dragState) return;
+
+  const touch = e.changedTouches[0];
+  const cards = [...document.querySelectorAll('.item-card')];
+  cards.forEach(c => c.classList.remove('drag-over'));
+
+  // Find drop target
+  const target = cards.find(c => {
+    if (c === dragState.card) return false;
+    const r = c.getBoundingClientRect();
+    return touch.clientY >= r.top && touch.clientY <= r.bottom;
+  });
+
+  if (target) {
+    const fromId = dragState.id;
+    const toId   = +target.dataset.id;
+    const fromIdx = items.findIndex(i => i.id === fromId);
+    const toIdx   = items.findIndex(i => i.id === toId);
+    if (fromIdx >= 0 && toIdx >= 0) {
+      // Reorder
+      const [moved] = items.splice(fromIdx, 1);
+      items.splice(toIdx, 0, moved);
+      save();
+    }
+  }
+
+  // Cleanup
+  dragState.card.style.opacity = '';
+  if (ghost) { ghost.remove(); ghost = null; }
+  dragState = null;
+
+  renderList();
+  renderCount();
 }
 
 // ── UTILS ──────────────────────────────────────────────────────────────────
 function escHtml(s) {
-  return String(s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function renderCompletedSection() {
-  // Re-render only the completed toggle area without touching active items
-  // Easiest: full re-render (list is typically short)
-  renderList();
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ── INIT ───────────────────────────────────────────────────────────────────
