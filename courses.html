@@ -155,24 +155,51 @@
     background: var(--surface2);
   }
 
-  /* Drag handle */
+  /* Drag handle — wide grab zone for easy thumb access */
   .drag-handle {
-    padding: 14px 4px 14px 12px;
+    padding: 14px 10px 14px 16px;
     color: var(--text3);
-    font-size: 18px;
+    font-size: 22px;
     cursor: grab;
     flex-shrink: 0;
-    display: flex; align-items: center;
+    display: flex; align-items: center; justify-content: center;
+    min-width: 44px;
+    align-self: stretch;
     touch-action: none; /* let JS handle touch on the handle */
   }
-  .drag-handle:active { cursor: grabbing; }
+  .drag-handle:active { cursor: grabbing; color: var(--text2); }
 
-  .item-main { flex: 1; padding: 14px 12px 14px 4px; min-width: 0; }
+  .item-main { flex: 1; padding: 14px 8px 14px 2px; min-width: 0; }
   .item-name {
     font-size: 16px; font-weight: 500; color: var(--text);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .item-qty-label { font-size: 13px; color: var(--text3); margin-top: 2px; }
+
+  /* Inline name edit field */
+  .item-name-edit {
+    font-size: 16px; font-weight: 500;
+    background: var(--surface2);
+    border: 0.5px solid var(--accent);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    padding: 5px 8px;
+    width: 100%;
+    font-family: inherit;
+    outline: none;
+  }
+
+  /* Edit (pencil) button */
+  .btn-edit {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: none; border: none; color: var(--text3);
+    font-size: 18px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s, transform 0.1s;
+    touch-action: manipulation;
+  }
+  .btn-edit:active { background: var(--surface2); color: var(--text); transform: scale(0.9); }
 
   /* Check button — replaces the old counter+inc combo */
   .btn-check {
@@ -534,6 +561,41 @@ function checkItem(id) {
   showToast(`"${item.name}" coché`);
 }
 
+// ── EDIT NAME (inline, not stored in vocab) ────────────────────────────────
+function startEditName(id) {
+  const nameEl = document.querySelector(`[data-name="${id}"]`);
+  if (!nameEl) return;
+  const item = items.find(i => i.id === id);
+  if (!item) return;
+
+  // Replace the name div with an input pre-filled with the current name
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'item-name-edit';
+  input.value = item.name;
+  input.autocomplete = 'off';
+  input.autocorrect  = 'off';
+  input.spellcheck   = false;
+
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const commit = () => {
+    const newName = input.value.trim();
+    if (newName) item.name = newName; // keep old name if empty
+    save();
+    renderList(); // redraw to restore normal layout
+  };
+
+  // Enter confirms, Escape cancels, blur confirms
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    else if (e.key === 'Escape') { e.preventDefault(); input.value = item.name; input.blur(); }
+  });
+  input.addEventListener('blur', commit, { once: true });
+}
+
 // ── UNDO ───────────────────────────────────────────────────────────────────
 function undoLast() {
   if (!undoPayload) return;
@@ -603,9 +665,10 @@ function renderList() {
       draggable="false">
       <div class="drag-handle" data-drag="${item.id}">⠿</div>
       <div class="item-main">
-        <div class="item-name">${escHtml(item.name)}</div>
+        <div class="item-name" data-name="${item.id}">${escHtml(item.name)}</div>
         <div class="item-qty-label">${escHtml(formatTarget(item))}</div>
       </div>
+      <button class="btn-edit" data-edit="${item.id}" aria-label="Modifier ${escHtml(item.name)}">✎</button>
       <button class="btn-check" data-check="${item.id}" aria-label="Cocher ${escHtml(item.name)}">✓</button>
     </div>`).join('');
 
@@ -632,6 +695,11 @@ function renderList() {
   // Bind check buttons (avoids inline onclick with float IDs)
   container.querySelectorAll('[data-check]').forEach(btn => {
     btn.addEventListener('click', () => checkItem(+btn.dataset.check));
+  });
+
+  // Bind edit (pencil) buttons
+  container.querySelectorAll('[data-edit]').forEach(btn => {
+    btn.addEventListener('click', () => startEditName(+btn.dataset.edit));
   });
 
   // Bind drag handles
