@@ -188,6 +188,32 @@
     font-family: inherit;
     outline: none;
   }
+  .item-edit-wrap { display: flex; flex-direction: column; gap: 6px; }
+  .item-edit-qty-row { display: flex; gap: 6px; align-items: center; }
+  .item-qty-edit {
+    flex: 1; min-width: 0;
+    font-size: 14px;
+    background: var(--surface2);
+    border: 0.5px solid var(--accent);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    padding: 5px 8px;
+    font-family: inherit;
+    outline: none;
+  }
+  .item-unit-edit {
+    font-size: 14px;
+    background: var(--surface2);
+    border: 0.5px solid var(--accent);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    padding: 5px 8px;
+    font-family: inherit;
+    outline: none;
+    appearance: none;
+    min-width: 56px;
+    text-align: center;
+  }
 
   /* Edit (pencil) button */
   .btn-edit {
@@ -340,13 +366,8 @@
       <input class="input-qty" id="input-qty-int" type="number" min="1" placeholder="Qté cible" inputmode="numeric">
     </div>
     <div class="qty-row" id="qty-weight-row" style="display:none">
-      <input class="input-qty" id="input-qty-target" type="number" min="1" placeholder="Cible (ex: 500)" inputmode="decimal">
+      <input class="input-qty" id="input-qty-target" type="number" min="1" placeholder="Poids (ex: 500)" inputmode="decimal">
       <select class="unit-select" id="input-unit">
-        <option value="g">g</option><option value="kg">kg</option>
-        <option value="L">L</option><option value="cl">cl</option>
-      </select>
-      <input class="input-qty" id="input-qty-step" type="number" min="1" placeholder="Pas (ex: 250)" inputmode="decimal">
-      <select class="unit-select" id="input-unit-step">
         <option value="g">g</option><option value="kg">kg</option>
         <option value="L">L</option><option value="cl">cl</option>
       </select>
@@ -379,7 +400,7 @@
 const DEFAULT_VOCAB = [
   'Pâtes','Riz','Poulet','Boeuf','Avocat','Maïs','Carotte',
   'Aubergine','Banane','Pomme','Pêche','Abricot'
-].map(name => ({ name, type: 'int', target: 1, step: 1, unit: '', stepUnit: '', count: 1 }));
+].map(name => ({ name, type: 'int', target: 1, unit: '', count: 1 }));
 
 // ── STATE ──────────────────────────────────────────────────────────────────
 let items     = JSON.parse(localStorage.getItem('crs_items')     || 'null');
@@ -469,8 +490,6 @@ function selectAC(idx) {
   } else {
     document.getElementById('input-qty-target').value = v.target || '';
     document.getElementById('input-unit').value        = v.unit || 'g';
-    document.getElementById('input-qty-step').value   = v.step || '';
-    document.getElementById('input-unit-step').value  = v.stepUnit || 'g';
   }
   setTimeout(() => {
     const qField = currentType === 'int'
@@ -525,26 +544,23 @@ function setType(type) {
 function addItem() {
   const name = document.getElementById('input-name').value.trim();
   if (!name) return;
-  let target, step, unit, stepUnit;
+  let target, unit;
   if (currentType === 'int') {
     target = parseInt(document.getElementById('input-qty-int').value) || 1;
-    step = 1; unit = ''; stepUnit = '';
+    unit = '';
   } else {
-    target   = parseFloat(document.getElementById('input-qty-target').value) || 100;
-    unit     = document.getElementById('input-unit').value;
-    step     = parseFloat(document.getElementById('input-qty-step').value) || target;
-    stepUnit = document.getElementById('input-unit-step').value;
+    target = parseFloat(document.getElementById('input-qty-target').value) || 100;
+    unit   = document.getElementById('input-unit').value;
   }
-  const entry = { name, type: currentType, target, step, unit, stepUnit };
+  const entry = { name, type: currentType, target, unit };
   upsertVocab(entry);
-  items.push({ id: Date.now() + Math.random(), ...entry, current: 0 });
+  items.push({ id: Date.now() + Math.random(), ...entry });
   save(); renderList(); renderCount(); resetForm();
 }
 function resetForm() {
   document.getElementById('input-name').value       = '';
   document.getElementById('input-qty-int').value    = '';
   document.getElementById('input-qty-target').value = '';
-  document.getElementById('input-qty-step').value   = '';
   hideAddDetails(); hideAutocomplete(); setType('int');
 }
 
@@ -561,39 +577,89 @@ function checkItem(id) {
   showToast(`"${item.name}" coché`);
 }
 
-// ── EDIT NAME (inline, not stored in vocab) ────────────────────────────────
+// ── EDIT NAME + QUANTITY (inline, not stored in vocab) ─────────────────────
 function startEditName(id) {
-  const nameEl = document.querySelector(`[data-name="${id}"]`);
-  if (!nameEl) return;
   const item = items.find(i => i.id === id);
   if (!item) return;
+  const card = document.querySelector(`.item-card[data-id="${id}"]`);
+  if (!card) return;
+  const main = card.querySelector('.item-main');
+  if (!main) return;
 
-  // Replace the name div with an input pre-filled with the current name
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.className = 'item-name-edit';
-  input.value = item.name;
-  input.autocomplete = 'off';
-  input.autocorrect  = 'off';
-  input.spellcheck   = false;
+  // Build the edit UI: name field on top, quantity (+ unit for weight) below
+  const wrap = document.createElement('div');
+  wrap.className = 'item-edit-wrap';
 
-  nameEl.replaceWith(input);
-  input.focus();
-  input.select();
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.className = 'item-name-edit';
+  nameInput.value = item.name;
+  nameInput.autocomplete = 'off';
+  nameInput.autocorrect  = 'off';
+  nameInput.spellcheck   = false;
 
+  const qtyRow = document.createElement('div');
+  qtyRow.className = 'item-edit-qty-row';
+
+  const qtyInput = document.createElement('input');
+  qtyInput.type = 'number';
+  qtyInput.min = '1';
+  qtyInput.className = 'item-qty-edit';
+  qtyInput.value = item.target;
+  qtyInput.inputMode = item.type === 'int' ? 'numeric' : 'decimal';
+
+  qtyRow.appendChild(qtyInput);
+
+  // Weight items: also show a unit selector (g / kg / L / cl)
+  let unitSelect = null;
+  if (item.type === 'weight') {
+    unitSelect = document.createElement('select');
+    unitSelect.className = 'item-unit-edit';
+    ['g','kg','L','cl'].forEach(u => {
+      const opt = document.createElement('option');
+      opt.value = u; opt.textContent = u;
+      if (u === item.unit) opt.selected = true;
+      unitSelect.appendChild(opt);
+    });
+    qtyRow.appendChild(unitSelect);
+  }
+
+  wrap.appendChild(nameInput);
+  wrap.appendChild(qtyRow);
+
+  // Swap content
+  main.innerHTML = '';
+  main.appendChild(wrap);
+  nameInput.focus();
+  nameInput.select();
+
+  let committed = false;
   const commit = () => {
-    const newName = input.value.trim();
-    if (newName) item.name = newName; // keep old name if empty
+    if (committed) return;
+    committed = true;
+    const newName = nameInput.value.trim();
+    if (newName) item.name = newName;             // keep old if empty
+    const newQty = item.type === 'int'
+      ? parseInt(qtyInput.value)
+      : parseFloat(qtyInput.value);
+    if (newQty && newQty > 0) item.target = newQty; // keep old if invalid
+    if (unitSelect) item.unit = unitSelect.value;
     save();
-    renderList(); // redraw to restore normal layout
+    renderList();
   };
 
-  // Enter confirms, Escape cancels, blur confirms
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-    else if (e.key === 'Escape') { e.preventDefault(); input.value = item.name; input.blur(); }
+  // Enter on either field commits; Escape cancels
+  const onKey = (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    else if (e.key === 'Escape') { e.preventDefault(); committed = true; renderList(); }
+  };
+  nameInput.addEventListener('keydown', onKey);
+  qtyInput.addEventListener('keydown', onKey);
+
+  // Commit when focus leaves the whole edit block (not when moving between its fields)
+  wrap.addEventListener('focusout', (e) => {
+    if (!wrap.contains(e.relatedTarget)) commit();
   });
-  input.addEventListener('blur', commit, { once: true });
 }
 
 // ── UNDO ───────────────────────────────────────────────────────────────────
