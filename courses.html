@@ -331,6 +331,69 @@
     background: var(--danger); color: #fff; font-size: 15px; font-weight: 600;
     cursor: pointer; font-family: inherit;
   }
+  .btn-confirm {
+    flex: 1; padding: 13px; border-radius: var(--radius-sm); border: none;
+    background: var(--accent); color: #0f0f0f; font-size: 15px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+
+  /* HEADER actions */
+  .header-actions { display: flex; align-items: center; gap: 2px; }
+  .btn-sort {
+    background: none; border: none; color: var(--text2); font-size: 13px;
+    padding: 6px 10px; border-radius: var(--radius-sm); cursor: pointer;
+    font-family: inherit; transition: color 0.15s, background 0.15s; white-space: nowrap;
+  }
+  .btn-sort:active { background: var(--accent-dim); color: var(--accent); }
+
+  /* CATEGORY select in add form */
+  .cat-select-row { display: flex; }
+  .cat-select {
+    flex: 1; background: var(--surface); border: 0.5px solid var(--border2);
+    border-radius: var(--radius-sm); color: var(--text); font-size: 14px;
+    padding: 10px 12px; font-family: inherit; outline: none; cursor: pointer; appearance: none;
+  }
+  .cat-select:focus { border-color: var(--accent); }
+
+  /* CATEGORY separators in the list */
+  .cat-sep {
+    margin: 16px 20px 6px; font-size: 11px; font-weight: 600;
+    letter-spacing: 0.6px; text-transform: uppercase; color: var(--text3);
+  }
+  .cat-sep:first-child { margin-top: 6px; }
+
+  /* Category select inside inline edit */
+  .item-cat-edit {
+    flex: 1; font-size: 14px; background: var(--surface2);
+    border: 0.5px solid var(--accent); border-radius: var(--radius-sm);
+    color: var(--text); padding: 5px 8px; font-family: inherit; outline: none; appearance: none;
+  }
+
+  /* SORT modal — category order list */
+  .cat-order-list {
+    display: flex; flex-direction: column; gap: 6px; margin-bottom: 22px;
+    max-height: 50vh; overflow-y: auto;
+  }
+  .cat-row {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface2); border: 0.5px solid var(--border);
+    border-radius: var(--radius-sm); padding: 12px 14px; user-select: none;
+  }
+  .cat-row.dragging {
+    border-color: var(--accent); box-shadow: 0 6px 24px rgba(0,0,0,0.5); opacity: 0.95;
+  }
+  .cat-row-handle {
+    color: var(--text3); font-size: 20px; cursor: grab;
+    touch-action: none; display: flex; align-items: center;
+  }
+  .cat-row-handle:active { cursor: grabbing; color: var(--text2); }
+  .cat-row-name { flex: 1; font-size: 15px; color: var(--text); }
+  .cat-row-count {
+    font-size: 12px; font-weight: 600; color: var(--text2);
+    background: var(--surface); border: 0.5px solid var(--border);
+    padding: 2px 9px; border-radius: 20px; min-width: 28px; text-align: center;
+  }
+  .cat-row-count.zero { opacity: 0.35; }
 </style>
 </head>
 <body>
@@ -340,7 +403,10 @@
     <span class="header-title">Courses</span>
     <span class="header-count" id="item-count"></span>
   </div>
-  <button class="btn-clear" onclick="confirmClear()">Tout effacer</button>
+  <div class="header-actions">
+    <button class="btn-sort" onclick="openSortModal()">⇅ Trier</button>
+    <button class="btn-clear" onclick="confirmClear()">Tout effacer</button>
+  </div>
 </div>
 
 <div class="add-section">
@@ -358,6 +424,11 @@
   </div>
 
   <div class="add-details" id="add-details">
+    <div class="cat-select-row" id="cat-select-row">
+      <select class="cat-select" id="input-category">
+        <option value="">Catégorie…</option>
+      </select>
+    </div>
     <div class="type-toggle">
       <button class="type-btn active" id="type-int" onclick="setType('int')">Quantité</button>
       <button class="type-btn" id="type-weight" onclick="setType('weight')">Poids</button>
@@ -395,12 +466,31 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="sort-overlay" onclick="closeSortModal(event)">
+  <div class="modal">
+    <div class="modal-title">Trier par catégorie</div>
+    <div class="modal-body">Glisse les rayons dans l'ordre où tu les parcours en magasin. La liste sera triée dans cet ordre.</div>
+    <div class="cat-order-list" id="cat-order-list"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeSortModalDirect()">Annuler</button>
+      <button class="btn-confirm" onclick="applySort()">Trier</button>
+    </div>
+  </div>
+</div>
+
 <script>
+// ── CATEGORIES ─────────────────────────────────────────────────────────────
+const CATEGORIES = [
+  'Fruit','Légume','Féculent','Viande','Poisson','Frais',
+  'Épicerie','Boissons','Surgelés','Boulangerie','Hygiène','Autre'
+];
+
 // ── DEFAULT VOCAB ──────────────────────────────────────────────────────────
 const DEFAULT_VOCAB = [
-  'Pâtes','Riz','Poulet','Boeuf','Avocat','Maïs','Carotte',
-  'Aubergine','Banane','Pomme','Pêche','Abricot'
-].map(name => ({ name, type: 'int', target: 1, unit: '', count: 1 }));
+  ['Pâtes','Féculent'], ['Riz','Féculent'], ['Poulet','Viande'], ['Boeuf','Viande'],
+  ['Avocat','Légume'], ['Maïs','Légume'], ['Carotte','Légume'], ['Aubergine','Légume'],
+  ['Banane','Fruit'], ['Pomme','Fruit'], ['Pêche','Fruit'], ['Abricot','Fruit']
+].map(([name, category]) => ({ name, type: 'int', target: 1, unit: '', category, count: 1 }));
 
 // ── STATE ──────────────────────────────────────────────────────────────────
 let items     = JSON.parse(localStorage.getItem('crs_items')     || 'null');
@@ -409,6 +499,14 @@ let vocab     = JSON.parse(localStorage.getItem('crs_vocab')     || 'null');
 
 if (items === null)  { items = []; localStorage.setItem('crs_items', '[]'); }
 if (vocab === null)  { vocab = DEFAULT_VOCAB; localStorage.setItem('crs_vocab', JSON.stringify(vocab)); }
+
+// Category order (store-aisle order chosen by the user)
+let catOrder = JSON.parse(localStorage.getItem('crs_cat_order') || 'null');
+if (catOrder === null) catOrder = [...CATEGORIES];
+// Migrate: drop unknown categories, append any new ones at the end
+catOrder = catOrder.filter(c => CATEGORIES.includes(c));
+CATEGORIES.forEach(c => { if (!catOrder.includes(c)) catOrder.push(c); });
+localStorage.setItem('crs_cat_order', JSON.stringify(catOrder));
 
 let currentType   = 'int';
 let toastTimer    = null;
@@ -421,7 +519,15 @@ function save() {
   localStorage.setItem('crs_items',     JSON.stringify(items));
   localStorage.setItem('crs_completed', JSON.stringify(completed));
   localStorage.setItem('crs_vocab',     JSON.stringify(vocab));
+  localStorage.setItem('crs_cat_order', JSON.stringify(catOrder));
 }
+
+// Look up a vocab entry by name (case-insensitive)
+function findVocab(name) {
+  const k = name.toLowerCase().trim();
+  return vocab.find(v => v.name.toLowerCase() === k);
+}
+function catOf(item) { return item.category || 'Autre'; }
 
 // ── VOCAB ──────────────────────────────────────────────────────────────────
 function upsertVocab(entry) {
@@ -484,6 +590,7 @@ function selectAC(idx) {
   document.getElementById('input-name').value = v.name;
   hideAutocomplete();
   showAddDetails();
+  syncCategoryField();
   setType(v.type);
   if (v.type === 'int') {
     document.getElementById('input-qty-int').value = v.count > 1 ? v.target : '';
@@ -502,8 +609,17 @@ function selectAC(idx) {
 // ── INPUT EVENTS ───────────────────────────────────────────────────────────
 function onNameInput() {
   const val = document.getElementById('input-name').value.trim();
-  if (val.length > 0) { showAddDetails(); renderAutocomplete(val); }
+  if (val.length > 0) { showAddDetails(); renderAutocomplete(val); syncCategoryField(); }
   else { hideAddDetails(); hideAutocomplete(); }
+}
+
+// Known item → category auto-filled & hidden. Unknown → ask (selector shown).
+function syncCategoryField() {
+  const v   = findVocab(document.getElementById('input-name').value);
+  const row = document.getElementById('cat-select-row');
+  const sel = document.getElementById('input-category');
+  if (v && v.category) { sel.value = v.category; row.style.display = 'none'; }
+  else { row.style.display = ''; }
 }
 function onNameFocus() {
   const val = document.getElementById('input-name').value.trim();
@@ -552,7 +668,8 @@ function addItem() {
     target = parseFloat(document.getElementById('input-qty-target').value) || 100;
     unit   = document.getElementById('input-unit').value;
   }
-  const entry = { name, type: currentType, target, unit };
+  const category = document.getElementById('input-category').value || 'Autre';
+  const entry = { name, type: currentType, target, unit, category };
   upsertVocab(entry);
   items.push({ id: Date.now() + Math.random(), ...entry });
   save(); renderList(); renderCount(); resetForm();
@@ -561,6 +678,8 @@ function resetForm() {
   document.getElementById('input-name').value       = '';
   document.getElementById('input-qty-int').value    = '';
   document.getElementById('input-qty-target').value = '';
+  document.getElementById('input-category').value   = '';
+  document.getElementById('cat-select-row').style.display = '';
   hideAddDetails(); hideAutocomplete(); setType('int');
 }
 
@@ -624,8 +743,22 @@ function startEditName(id) {
     qtyRow.appendChild(unitSelect);
   }
 
+  // Category selector (its own row, so weight items don't get cramped)
+  const catRow = document.createElement('div');
+  catRow.className = 'item-edit-qty-row';
+  const catSelect = document.createElement('select');
+  catSelect.className = 'item-cat-edit';
+  CATEGORIES.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    if (c === catOf(item)) opt.selected = true;
+    catSelect.appendChild(opt);
+  });
+  catRow.appendChild(catSelect);
+
   wrap.appendChild(nameInput);
   wrap.appendChild(qtyRow);
+  wrap.appendChild(catRow);
 
   // Swap content
   main.innerHTML = '';
@@ -644,6 +777,10 @@ function startEditName(id) {
       : parseFloat(qtyInput.value);
     if (newQty && newQty > 0) item.target = newQty; // keep old if invalid
     if (unitSelect) item.unit = unitSelect.value;
+    item.category = catSelect.value;
+    // Remember the category on the vocab so it auto-fills next time
+    const vIdx = vocab.findIndex(v => v.name.toLowerCase() === item.name.toLowerCase());
+    if (vIdx >= 0) vocab[vIdx].category = catSelect.value;
     save();
     renderList();
   };
@@ -655,6 +792,7 @@ function startEditName(id) {
   };
   nameInput.addEventListener('keydown', onKey);
   qtyInput.addEventListener('keydown', onKey);
+  catSelect.addEventListener('keydown', onKey);
 
   // Commit when focus leaves the whole edit block (not when moving between its fields)
   wrap.addEventListener('focusout', (e) => {
@@ -726,7 +864,12 @@ function renderList() {
     return;
   }
 
-  let html = items.map(item => `
+  let lastCat = null;
+  let html = items.map(item => {
+    const cat = catOf(item);
+    let sep = '';
+    if (cat !== lastCat) { sep = `<div class="cat-sep">${escHtml(cat)}</div>`; lastCat = cat; }
+    return sep + `
     <div class="item-card" data-id="${item.id}"
       draggable="false">
       <div class="drag-handle" data-drag="${item.id}">⠿</div>
@@ -736,7 +879,8 @@ function renderList() {
       </div>
       <button class="btn-edit" data-edit="${item.id}" aria-label="Modifier ${escHtml(item.name)}">✎</button>
       <button class="btn-check" data-check="${item.id}" aria-label="Cocher ${escHtml(item.name)}">✓</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   if (completed.length) {
     const arrowClass = completedOpen ? 'completed-arrow open' : 'completed-arrow';
@@ -911,12 +1055,75 @@ function getDragTarget(clientY) {
   }) || null;
 }
 
+// ── SORT BY CATEGORY ───────────────────────────────────────────────────────
+function openSortModal() {
+  const list = document.getElementById('cat-order-list');
+  const counts = {};
+  items.forEach(it => { const c = catOf(it); counts[c] = (counts[c] || 0) + 1; });
+  list.innerHTML = catOrder.map(c => `
+    <div class="cat-row" data-cat="${escHtml(c)}">
+      <span class="cat-row-handle">⠿</span>
+      <span class="cat-row-name">${escHtml(c)}</span>
+      <span class="cat-row-count${counts[c] ? '' : ' zero'}">${counts[c] || 0}</span>
+    </div>`).join('');
+  bindCatReorder(list);
+  document.getElementById('sort-overlay').classList.add('visible');
+}
+function closeSortModal(e) {
+  if (e.target === document.getElementById('sort-overlay')) closeSortModalDirect();
+}
+function closeSortModalDirect() {
+  document.getElementById('sort-overlay').classList.remove('visible');
+}
+function applySort() {
+  // Read the chosen order straight from the DOM rows
+  catOrder = [...document.querySelectorAll('#cat-order-list .cat-row')].map(r => r.dataset.cat);
+  const rank = c => { const i = catOrder.indexOf(c); return i < 0 ? 999 : i; };
+  // Stable sort: by category rank, ties keep current order
+  items = items
+    .map((it, i) => [it, i])
+    .sort((a, b) => (rank(catOf(a[0])) - rank(catOf(b[0]))) || (a[1] - b[1]))
+    .map(x => x[0]);
+  save();
+  closeSortModalDirect();
+  renderList();
+}
+
+// Drag-to-reorder the category rows (pointer events → works on touch + mouse)
+function bindCatReorder(list) {
+  let drag = null;
+  list.querySelectorAll('.cat-row').forEach(row => {
+    const handle = row.querySelector('.cat-row-handle');
+    handle.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      drag = row;
+      row.classList.add('dragging');
+      handle.setPointerCapture(e.pointerId);
+    });
+    handle.addEventListener('pointermove', e => {
+      if (!drag) return;
+      const others = [...list.querySelectorAll('.cat-row:not(.dragging)')];
+      const after = others.find(r => {
+        const rect = r.getBoundingClientRect();
+        return e.clientY < rect.top + rect.height / 2;
+      });
+      if (after) list.insertBefore(drag, after);
+      else list.appendChild(drag);
+    });
+    const end = () => { if (drag) { drag.classList.remove('dragging'); drag = null; } };
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+  });
+}
+
 // ── UTILS ──────────────────────────────────────────────────────────────────
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ── INIT ───────────────────────────────────────────────────────────────────
+document.getElementById('input-category').insertAdjacentHTML('beforeend',
+  CATEGORIES.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join(''));
 renderList();
 renderCount();
 </script>
